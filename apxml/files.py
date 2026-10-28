@@ -1,5 +1,4 @@
 import csv
-import html
 import json
 import shutil
 from pathlib import Path
@@ -14,45 +13,15 @@ EXTENSIONS = {
     "typescript": "ts", "scala": "scala", "powershell": "ps1",
 }
 
-CHART_PAGE = """<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>{title}</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-</head>
-<body>
-<div id="chart"></div>
-<p>{caption}</p>
-<script>
-const figure = {figure};
-Plotly.newPlot("chart", figure.data, figure.layout);
-</script>
-</body>
-</html>
-"""
-
-DIAGRAM_PAGE = """<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>{title}</title>
-<script src="https://cdn.jsdelivr.net/npm/@viz-js/viz@3.11.0/lib/viz-standalone.js"></script>
-</head>
-<body>
-<div id="diagram"></div>
-<p>{caption}</p>
-<script>
-const dot = {dot};
-Viz.instance().then(viz => document.getElementById("diagram").appendChild(viz.renderSVGElement(dot)));
-</script>
-</body>
-</html>
-"""
-
-
 def folder_name(position, slug):
     return f"{position:02d}-{slug}"
+
+
+def lesson_folder(lesson):
+    return (config.FILES_DIR
+            / lesson["course_slug"]
+            / folder_name(lesson["chapter_position"], lesson["chapter_slug"])
+            / folder_name(lesson["position"], lesson["slug"]))
 
 
 def write_course(course):
@@ -76,18 +45,10 @@ def write_lesson(folder, lesson, blocks):
         kind = block["kind"]
         counters[kind] = counters.get(kind, 0) + 1
         name = f"{kind}_{counters[kind]:02d}"
-        title = html.escape(lesson["title"])
-        caption = html.escape(block["caption"] or "")
 
         if kind == "code":
             extension = EXTENSIONS.get(block["language"], "txt")
             (folder / f"{name}.{extension}").write_text(block["content"] + "\n", encoding="utf-8")
-        elif kind == "chart":
-            page = CHART_PAGE.format(title=title, caption=caption, figure=block["content"])
-            (folder / f"{name}.html").write_text(page, encoding="utf-8")
-        elif kind == "diagram":
-            page = DIAGRAM_PAGE.format(title=title, caption=caption, dot=json.dumps(block["content"]))
-            (folder / f"{name}.html").write_text(page, encoding="utf-8")
         elif kind == "table":
             with open(folder / f"{name}.csv", "w", newline="", encoding="utf-8") as f:
                 csv.writer(f).writerows(json.loads(block["content"]))

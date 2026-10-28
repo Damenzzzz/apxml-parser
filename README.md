@@ -19,6 +19,7 @@ python -m apxml courses     # главы и уроки каждого курса
 python -m apxml lessons     # тексты уроков, httpx в 4 потока, ~50 мин
 python -m apxml extract     # код, диаграммы, графики и таблицы из уроков, без интернета
 python -m apxml files       # раскладывает всё по папкам data/courses/курс/глава/урок
+python -m apxml render      # графики и диаграммы в PNG, Playwright, ~10-15 мин
 python -m apxml stats       # что уже есть в базе
 python -m apxml export      # data/lessons.jsonl вместе с блоками
 ```
@@ -60,7 +61,7 @@ python -m apxml courses --slug advanced-pytorch
 
 ## Папки с уроками
 
-`python -m apxml files` (или `--course <slug>` для одного курса) собирает из базы такую структуру:
+`python -m apxml files` и `python -m apxml render` (или `--course <slug>` для одного курса) собирают из базы такую структуру:
 
 ```
 data/courses/
@@ -70,16 +71,19 @@ data/courses/
     02-chapter-2-metrics-for-classification/
       02-accuracy-metric/
         lesson.md          текст урока
-        chart_01.html      график, открывается в браузере
+        chart_01.png       график
         table_01.csv
       05-confusion-matrix-explained/
         lesson.md
-        diagram_01.html    диаграмма, открывается в браузере
+        diagram_01.png     диаграмма
       ...
 ```
 
 Код сохраняется с нужным расширением: `code_01.py`, `code_02.sh`, `code_03.sql`, без языка — `.txt`.
-Графики рисует Plotly, диаграммы — Viz.js; обе библиотеки грузятся с CDN, поэтому для просмотра нужен интернет.
+
+На сайте графики и диаграммы не картинки, а исходники (JSON Plotly и DOT Graphviz), которые рисует браузер.
+`render` делает то же самое: открывает одну страницу в Playwright с Plotly и Viz.js, по очереди рисует каждый блок и делает скриншот.
+Уже готовые PNG пропускаются, поэтому команду можно прерывать и запускать снова. Для работы нужен интернет: библиотеки грузятся с CDN.
 
 ## Структура
 
@@ -89,8 +93,9 @@ apxml/
   fetcher.py    httpx с повторами и Playwright для каталога
   parsers.py    разбор каталога, курса и урока
   db.py         таблицы SQLite и сохранение
-  files.py      запись уроков, кода, графиков и таблиц в папки
-  commands.py   команды catalog, courses, lessons, extract, files, stats, export
+  files.py      запись уроков, кода и таблиц в папки
+  render.py     графики и диаграммы в PNG через Playwright
+  commands.py   команды catalog, courses, lessons, extract, files, render, stats, export
   __main__.py   CLI
 ```
 

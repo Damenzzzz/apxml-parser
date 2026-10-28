@@ -25,6 +25,9 @@ def build_parser():
     save = sub.add_parser("files", help="course / chapter / lesson folders with code, charts, diagrams, tables")
     save.add_argument("--course")
 
+    images = sub.add_parser("render", help="charts and diagrams to PNG (Playwright)")
+    images.add_argument("--course")
+
     sub.add_parser("stats", help="what is already in the database")
 
     export = sub.add_parser("export", help="lessons to JSONL")
@@ -46,6 +49,8 @@ def main():
             commands.extract(db)
         elif args.command == "files":
             commands.save_files(db, args.course)
+        elif args.command == "render":
+            commands.render_images(db, args.course)
         elif args.command == "stats":
             commands.stats(db)
         elif args.command == "export":

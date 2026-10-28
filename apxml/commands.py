@@ -1,7 +1,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from . import config, db as store, fetcher, files, parsers
+from . import config, db as store, fetcher, files, parsers, render
 
 
 def fetch_all(urls, workers):
@@ -102,11 +102,11 @@ def save_files(db, course_slug):
         params.append(course_slug)
 
     for course in db.execute(query, params).fetchall():
-        course_folder = files.write_course(course)
+        files.write_course(course)
         lessons = db.execute(
             """
-            SELECT l.id, l.title, l.url, l.content_text, l.position,
-                   l.slug, ch.position AS chapter_position, ch.slug AS chapter_slug
+            SELECT l.id, l.title, l.url, l.content_text, l.position, l.slug, l.course_slug,
+                   ch.position AS chapter_position, ch.slug AS chapter_slug
             FROM lessons l
             JOIN chapters ch ON ch.id = l.chapter_id
             WHERE l.course_slug = ? AND l.status = 'done'
@@ -119,11 +119,41 @@ def save_files(db, course_slug):
                 "SELECT kind, language, content, caption FROM blocks WHERE lesson_id = ? ORDER BY position",
                 (lesson["id"],),
             ).fetchall()
-            folder = (course_folder
-                      / files.folder_name(lesson["chapter_position"], lesson["chapter_slug"])
-                      / files.folder_name(lesson["position"], lesson["slug"]))
-            files.write_lesson(folder, lesson, blocks)
+            files.write_lesson(files.lesson_folder(lesson), lesson, blocks)
         print(f"{course['slug']}: {len(lessons)} lessons")
+
+
+def render_images(db, course_slug):
+    query = """
+        SELECT b.lesson_id, b.kind, b.content, l.course_slug, l.slug, l.position,
+               ch.slug AS chapter_slug, ch.position AS chapter_position
+        FROM blocks b
+        JOIN lessons l ON l.id = b.lesson_id
+        JOIN chapters ch ON ch.id = l.chapter_id
+        WHERE b.kind IN ('chart', 'diagram')
+    """
+    params = []
+    if course_slug:
+        query += " AND l.course_slug = ?"
+        params.append(course_slug)
+    query += " ORDER BY b.lesson_id, b.position"
+
+    items = []
+    counters = {}
+    for row in db.execute(query, params):
+        key = (row["lesson_id"], row["kind"])
+        counters[key] = counters.get(key, 0) + 1
+        path = files.lesson_folder(row) / f"{row['kind']}_{counters[key]:02d}.png"
+        if not path.exists():
+            items.append((row["kind"], row["content"], path))
+
+    errors = 0
+    for i, (path, ok) in enumerate(render.draw_all(items), 1):
+        if not ok:
+            errors += 1
+            print(f"error: {path}")
+        if i % 100 == 0 or i == len(items):
+            print(f"{i}/{len(items)} images, errors: {errors}")
 
 
 def stats(db):
@@ -144,7 +174,7 @@ def export(db, out):
     rows = db.execute(
         """
         SELECT l.id, c.title AS course, c.category, c.level, ch.title AS chapter,
-               l.title, l.url, l.description, l.content_text
+            l.title, l.url, l.description, l.content_text
         FROM lessons l
         JOIN chapters ch ON ch.id = l.chapter_id
         JOIN courses c ON c.slug = l.course_slug
