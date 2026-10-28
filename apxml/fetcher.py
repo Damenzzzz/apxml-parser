@@ -30,6 +30,18 @@ def get(url):
     return None
 
 
+def download(url, path):
+    try:
+        response = client.get(url)
+    except httpx.HTTPError:
+        return False
+    if response.status_code != 200:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(response.content)
+    return True
+
+
 def catalog_pages(max_pages):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)

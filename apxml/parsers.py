@@ -22,6 +22,49 @@ def json_ld(tree, kind):
     return {}
 
 
+def replace_math(node):
+    for math in node.css(".katex"):
+        tex = math.css_first("annotation")
+        math.replace_with(f"${tex.text()}$" if tex else math.text())
+
+
+def caption_after(node):
+    sibling = node.next
+    while sibling is not None and sibling.tag == "-text" and not sibling.text(strip=True):
+        sibling = sibling.next
+    if sibling is not None and sibling.tag == "blockquote":
+        return sibling.text(strip=True)
+    return None
+
+
+def parse_blocks(content_html):
+    tree = LexborHTMLParser(content_html)
+    replace_math(tree.root)
+
+    blocks = []
+    for node in tree.css("pre, div.graphviz-container, div.plotly-container, table"):
+        classes = node.attributes.get("class") or ""
+
+        if node.tag == "pre":
+            code = node.css_first("code") or node
+            language = (code.attributes.get("class") or "").replace("language-", "") or None
+            blocks.append({"kind": "code", "language": language,
+                           "content": code.text().strip("\n"), "caption": None})
+        elif "graphviz-container" in classes:
+            blocks.append({"kind": "diagram", "language": "dot",
+                           "content": node.attributes.get("data-graph-definition"),
+                           "caption": caption_after(node)})
+        elif "plotly-container" in classes:
+            blocks.append({"kind": "chart", "language": "plotly",
+                           "content": node.attributes.get("data-plot-definition"),
+                           "caption": caption_after(node)})
+        elif node.tag == "table":
+            rows = [[cell.text(strip=True) for cell in row.css("th, td")] for row in node.css("tr")]
+            blocks.append({"kind": "table", "language": None,
+                           "content": json.dumps(rows, ensure_ascii=False), "caption": None})
+    return blocks
+
+
 def parse_catalog(html):
     tree = LexborHTMLParser(html)
     courses = []
@@ -38,6 +81,7 @@ def parse_catalog(html):
         badges = [b.text(strip=True) for b in card.css(".mantine-Badge-label")]
         description = card.css_first("p[data-line-clamp]")
         meta = [p.text(strip=True) for p in card.css("p[data-inherit]")]
+        image = card.css_first("img")
 
         courses.append({
             "slug": parts[1],
@@ -48,6 +92,7 @@ def parse_catalog(html):
             "duration_hours": to_int(meta[0]) if meta else None,
             "prerequisites": meta[1] if len(meta) > 1 else None,
             "url": f"{config.BASE_URL}/courses/{parts[1]}",
+            "cover_url": image.attributes.get("src") if image else None,
         })
     return courses
 
@@ -107,10 +152,8 @@ def parse_lesson(html):
 
     result["content_html"] = content.html
 
-    for node in content.css(".katex"):
-        tex = node.css_first("annotation")
-        node.replace_with(f"${tex.text()}$" if tex else node.text())
-    for node in content.css("script, style, .graphviz-container"):
+    replace_math(content)
+    for node in content.css("script, style, .graphviz-container, .plotly-container"):
         node.decompose()
 
     text = content.text(separator="")

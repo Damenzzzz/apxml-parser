@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS lessons (
     status TEXT DEFAULT 'pending',
     fetched_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_id INTEGER REFERENCES lessons(id),
+    position INTEGER,
+    kind TEXT,
+    language TEXT,
+    content TEXT,
+    caption TEXT
+);
+
+CREATE INDEX IF NOT EXISTS blocks_lesson ON blocks(lesson_id);
 """
 
 
@@ -53,10 +65,15 @@ def now():
 
 def connect():
     config.DB_PATH.parent.mkdir(exist_ok=True)
-    db = sqlite3.connect(config.DB_PATH)
+    db = sqlite3.connect(config.DB_PATH, timeout=30)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
     db.executescript(SCHEMA)
+
+    columns = [row["name"] for row in db.execute("PRAGMA table_info(courses)")]
+    if "cover_path" not in columns:
+        db.execute("ALTER TABLE courses ADD COLUMN cover_path TEXT")
+        db.commit()
     return db
 
 
@@ -128,6 +145,24 @@ def save_lesson(db, url, lesson):
         (lesson["title"], lesson["description"], lesson["content_html"], lesson["content_text"],
          lesson["word_count"], status, now(), url),
     )
+    db.commit()
+
+
+def save_blocks(db, lesson_id, blocks):
+    db.execute("DELETE FROM blocks WHERE lesson_id = ?", (lesson_id,))
+    for position, block in enumerate(blocks, 1):
+        db.execute(
+            """
+            INSERT INTO blocks (lesson_id, position, kind, language, content, caption)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (lesson_id, position, block["kind"], block["language"], block["content"], block["caption"]),
+        )
+    db.commit()
+
+
+def set_cover(db, slug, path):
+    db.execute("UPDATE courses SET cover_path = ? WHERE slug = ?", (str(path), slug))
     db.commit()
 
 

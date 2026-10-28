@@ -3,6 +3,7 @@ from pathlib import Path
 BASE_URL = "https://apxml.com"
 DB_PATH = Path("data/apxml.db")
 EXPORT_PATH = Path("data/lessons.jsonl")
+COVERS_DIR = Path("data/images/covers")
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
