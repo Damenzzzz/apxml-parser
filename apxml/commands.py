@@ -1,7 +1,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from . import config, db as store, fetcher, parsers
+from . import config, db as store, fetcher, files, parsers
 
 
 def fetch_all(urls, workers):
@@ -92,6 +92,38 @@ def extract(db):
         total += len(blocks)
         if i % 500 == 0 or i == len(rows):
             print(f"{i}/{len(rows)} lessons, {total} blocks")
+
+
+def save_files(db, course_slug):
+    query = "SELECT * FROM courses WHERE status = 'done'"
+    params = []
+    if course_slug:
+        query += " AND slug = ?"
+        params.append(course_slug)
+
+    for course in db.execute(query, params).fetchall():
+        course_folder = files.write_course(course)
+        lessons = db.execute(
+            """
+            SELECT l.id, l.title, l.url, l.content_text, l.position,
+                   l.slug, ch.position AS chapter_position, ch.slug AS chapter_slug
+            FROM lessons l
+            JOIN chapters ch ON ch.id = l.chapter_id
+            WHERE l.course_slug = ? AND l.status = 'done'
+            """,
+            (course["slug"],),
+        ).fetchall()
+
+        for lesson in lessons:
+            blocks = db.execute(
+                "SELECT kind, language, content, caption FROM blocks WHERE lesson_id = ? ORDER BY position",
+                (lesson["id"],),
+            ).fetchall()
+            folder = (course_folder
+                      / files.folder_name(lesson["chapter_position"], lesson["chapter_slug"])
+                      / files.folder_name(lesson["position"], lesson["slug"]))
+            files.write_lesson(folder, lesson, blocks)
+        print(f"{course['slug']}: {len(lessons)} lessons")
 
 
 def stats(db):

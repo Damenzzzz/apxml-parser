@@ -22,6 +22,9 @@ def build_parser():
     lessons.add_argument("--workers", type=int, default=config.WORKERS)
 
     sub.add_parser("extract", help="code, diagrams, charts and tables from saved lessons")
+    save = sub.add_parser("files", help="course / chapter / lesson folders with code, charts, diagrams, tables")
+    save.add_argument("--course")
+
     sub.add_parser("stats", help="what is already in the database")
 
     export = sub.add_parser("export", help="lessons to JSONL")
@@ -41,6 +44,8 @@ def main():
             commands.lessons(db, args.limit, args.course, args.workers)
         elif args.command == "extract":
             commands.extract(db)
+        elif args.command == "files":
+            commands.save_files(db, args.course)
         elif args.command == "stats":
             commands.stats(db)
         elif args.command == "export":

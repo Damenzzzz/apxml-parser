@@ -18,6 +18,7 @@ python -m apxml catalog     # список курсов и обложки, Playw
 python -m apxml courses     # главы и уроки каждого курса, httpx, ~1.5 мин
 python -m apxml lessons     # тексты уроков, httpx в 4 потока, ~50 мин
 python -m apxml extract     # код, диаграммы, графики и таблицы из уроков, без интернета
+python -m apxml files       # раскладывает всё по папкам data/courses/курс/глава/урок
 python -m apxml stats       # что уже есть в базе
 python -m apxml export      # data/lessons.jsonl вместе с блоками
 ```
@@ -57,6 +58,29 @@ python -m apxml courses --slug advanced-pytorch
 
 Подпись диаграммы или графика берётся из `<blockquote>` сразу после него и лежит в `caption`.
 
+## Папки с уроками
+
+`python -m apxml files` (или `--course <slug>` для одного курса) собирает из базы такую структуру:
+
+```
+data/courses/
+  basics-model-evaluation-metrics/
+    course.json
+    cover.webp
+    02-chapter-2-metrics-for-classification/
+      02-accuracy-metric/
+        lesson.md          текст урока
+        chart_01.html      график, открывается в браузере
+        table_01.csv
+      05-confusion-matrix-explained/
+        lesson.md
+        diagram_01.html    диаграмма, открывается в браузере
+      ...
+```
+
+Код сохраняется с нужным расширением: `code_01.py`, `code_02.sh`, `code_03.sql`, без языка — `.txt`.
+Графики рисует Plotly, диаграммы — Viz.js; обе библиотеки грузятся с CDN, поэтому для просмотра нужен интернет.
+
 ## Структура
 
 ```
@@ -65,7 +89,8 @@ apxml/
   fetcher.py    httpx с повторами и Playwright для каталога
   parsers.py    разбор каталога, курса и урока
   db.py         таблицы SQLite и сохранение
-  commands.py   команды catalog, courses, lessons, stats, export
+  files.py      запись уроков, кода, графиков и таблиц в папки
+  commands.py   команды catalog, courses, lessons, extract, files, stats, export
   __main__.py   CLI
 ```
 
